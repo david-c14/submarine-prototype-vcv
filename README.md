@@ -1,7 +1,7 @@
 # submarine-prototype plugins for VCV
 Prototype plugins for VCV Rack released under the SubmarinePrototype label
 
-This is an independant effort neither endorsed nor directly affiliated with vcvrack
+This is an independent effort neither endorsed nor directly affiliated with vcvrack
 
 See https://vcvrack.com for more information about VCV rack
 
