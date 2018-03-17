@@ -1,17 +1,27 @@
-#include "Template.hpp"
+#include "SubmarinePrototype.hpp"
 
 
-struct MyModule : Module {
+struct CrossFader : Module {
 	enum ParamIds {
-		PITCH_PARAM,
+		FADE_PARAM,
+		GAIN_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
-		PITCH_INPUT,
+		A_INPUT,
+		B_INPUT,
+		FADE_CV_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
-		SINE_OUTPUT,
+		FADE_OUTPUT,
+		CORREL_OUTPUT,
+		LIN_A_OUTPUT,
+		LIN_B_OUTPUT,
+		FADE_LIN_OUTPUT,
+		LOG_A_OUTPUT,
+		LOG_B_OUTPUT,
+		FADE_LOG_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
@@ -19,63 +29,108 @@ struct MyModule : Module {
 		NUM_LIGHTS
 	};
 
-	float phase = 0.0;
-	float blinkPhase = 0.0;
 
-	MyModule() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {}
+	float samples_a[256];
+	float samples_b[256];
+	int n = 0;
+	int sp = 0;
+	float covariance = 0;
+	float sigma_a = 0;
+	float sigma_b = 0;
+	float sigma_a2 = 0;
+	float sigma_b2 = 0;
+	
+	
+	CrossFader() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {}
 	void step() override;
 
-	// For more advanced Module features, read Rack's engine.hpp header file
-	// - toJson, fromJson: serialization of internal data
-	// - onSampleRateChange: event triggered by a change of sample rate
-	// - onReset, onRandomize, onCreate, onDelete: implements special behavior when user clicks these from the context menu
+	float correlation(float, float);
+
 };
 
 
-void MyModule::step() {
-	// Implement a simple sine oscillator
-	float deltaTime = engineGetSampleTime();
+void CrossFader::step() {
+	float a = inputs[A_INPUT].value;
+	float b = inputs[B_INPUT].value;
+	float fader = params[FADE_PARAM].value;
+	if (inputs[FADE_CV_INPUT].active)
+		fader = inputs[FADE_CV_INPUT].value;
+	fader += 5.0f;
+	fader /= 10.0f;
+	fader = clamp(fader, 0.0f, 1.0f);
+	float b_fade_lin = fader;
+	float a_fade_lin = 1.0f - b_fade_lin;
+	float b_fade_log = powf(fader, 0.5f);
+	float a_fade_log = powf(1.0f - fader, 0.5f);
+	float fade_output_lin = a * a_fade_lin + b * b_fade_lin;
+	float fade_output_log = a * a_fade_log + b * b_fade_log;
+	if (params[GAIN_PARAM].value < 0.5f) {
+		outputs[FADE_OUTPUT].value = fade_output_log;
+	}
+	else {
+		outputs[FADE_OUTPUT].value = fade_output_lin;
+	}
+	outputs[CORREL_OUTPUT].value = correlation(a,b);
+	outputs[LIN_A_OUTPUT].value = a * a_fade_lin;
+	outputs[LIN_B_OUTPUT].value = b * b_fade_lin;
+	outputs[LOG_A_OUTPUT].value = a * a_fade_log;
+	outputs[LOG_B_OUTPUT].value = b * b_fade_log; 
+	outputs[FADE_LIN_OUTPUT].value = fade_output_lin;
+	outputs[FADE_LOG_OUTPUT].value = fade_output_log;
+}
 
-	// Compute the frequency from the pitch parameter and input
-	float pitch = params[PITCH_PARAM].value;
-	pitch += inputs[PITCH_INPUT].value;
-	pitch = clamp(pitch, -4.0f, 4.0f);
-	// The default pitch is C4
-	float freq = 261.626f * powf(2.0f, pitch);
-
-	// Accumulate the phase
-	phase += freq * deltaTime;
-	if (phase >= 1.0f)
-		phase -= 1.0f;
-
-	// Compute the sine output
-	float sine = sinf(2.0f * M_PI * phase);
-	outputs[SINE_OUTPUT].value = 5.0f * sine;
-
-	// Blink light at 1Hz
-	blinkPhase += deltaTime;
-	if (blinkPhase >= 1.0f)
-		blinkPhase -= 1.0f;
-	lights[BLINK_LIGHT].value = (blinkPhase < 0.5f) ? 1.0f : 0.0f;
+float CrossFader::correlation(float a, float b) {
+	//Remove old samples
+	if (n == 256) {
+		covariance -= (samples_a[sp] * samples_b[sp]);
+		sigma_a -= samples_a[sp];
+		sigma_b -= samples_b[sp];
+		sigma_a2 -= (samples_a[sp] * samples_a[sp]);
+		sigma_b2 -= (samples_b[sp] * samples_b[sp]);
+	}
+	else {
+		n++;
+	}
+	//Add new samples
+	covariance += (a * b);
+	sigma_a += samples_a[sp] = a;
+	sigma_b += samples_b[sp] = b;
+	sigma_a2 += (a * a);
+	sigma_b2 += (b * b);
+	sp++;
+	if (sp > 255)
+		sp -= 256;
+	float stdev_a = powf(sigma_a2 - (sigma_a * sigma_a / n), 0.5f);
+	float stdev_b = powf(sigma_b2 - (sigma_b * sigma_b / n), 0.5f);
+	return covariance / (stdev_a * stdev_b);
 }
 
 
-struct MyModuleWidget : ModuleWidget {
-	MyModuleWidget(MyModule *module) : ModuleWidget(module) {
-		setPanel(SVG::load(assetPlugin(plugin, "res/MyModule.svg")));
+struct CrossFaderWidget : ModuleWidget {
+	CrossFaderWidget(CrossFader *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/CrossFader.svg")));
 
 		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(ParamWidget::create<Davies1900hBlackKnob>(Vec(28, 87), module, MyModule::PITCH_PARAM, -3.0, 3.0, 0.0));
+		addParam(ParamWidget::create<Davies1900hLargeBlackKnob>(Vec(50, 85), module, CrossFader::FADE_PARAM, -5.0, 5.0, 0.0));
+		addParam(ParamWidget::create<CKSS>(Vec(30, 102.5), module, CrossFader::GAIN_PARAM, 0.0f, 1.0f, 1.0f));
 
-		addInput(Port::create<PJ301MPort>(Vec(33, 186), Port::INPUT, module, MyModule::PITCH_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(25, 75), Port::INPUT, module, CrossFader::A_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(105, 75), Port::INPUT, module, CrossFader::B_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(25, 125), Port::INPUT, module, CrossFader::FADE_CV_INPUT));
 
-		addOutput(Port::create<PJ301MPort>(Vec(33, 275), Port::OUTPUT, module, MyModule::SINE_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(105, 125), Port::OUTPUT, module, CrossFader::FADE_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(105, 200), Port::OUTPUT, module, CrossFader::CORREL_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(25, 250), Port::OUTPUT, module, CrossFader::LIN_A_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(65, 250), Port::OUTPUT, module, CrossFader::LIN_B_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(105, 250), Port::OUTPUT, module, CrossFader::FADE_LIN_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(25, 300), Port::OUTPUT, module, CrossFader::LOG_A_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(65, 300), Port::OUTPUT, module, CrossFader::LOG_B_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(105, 300), Port::OUTPUT, module, CrossFader::FADE_LOG_OUTPUT));
 
-		addChild(ModuleLightWidget::create<MediumLight<RedLight>>(Vec(41, 59), module, MyModule::BLINK_LIGHT));
 	}
 };
 
@@ -84,4 +139,4 @@ struct MyModuleWidget : ModuleWidget {
 // author name for categorization per plugin, module slug (should never
 // change), human-readable module name, and any number of tags
 // (found in `include/tags.hpp`) separated by commas.
-Model *modelMyModule = Model::create<MyModule, MyModuleWidget>("Template", "MyModule", "My Module", OSCILLATOR_TAG);
+Model *modelCrossFader = Model::create<CrossFader, CrossFaderWidget>("SubmarinePrototype", "CrossFader", "Cross Fader", OSCILLATOR_TAG);
