@@ -102,6 +102,8 @@ float CrossFader::correlation(float a, float b) {
 		sp -= 256;
 	float stdev_a = powf(sigma_a2 - (sigma_a * sigma_a / n), 0.5f);
 	float stdev_b = powf(sigma_b2 - (sigma_b * sigma_b / n), 0.5f);
+	if (stdev_a * stdev_b == 0.0f)
+		return 1.0f;
 	return covariance / (stdev_a * stdev_b);
 }
 
@@ -124,11 +126,11 @@ struct CrossFaderWidget : ModuleWidget {
 
 		addOutput(Port::create<PJ301MPort>(Vec(105, 125), Port::OUTPUT, module, CrossFader::FADE_OUTPUT));
 		addOutput(Port::create<PJ301MPort>(Vec(105, 200), Port::OUTPUT, module, CrossFader::CORREL_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(25, 250), Port::OUTPUT, module, CrossFader::LIN_A_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(65, 250), Port::OUTPUT, module, CrossFader::LIN_B_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(35, 250), Port::OUTPUT, module, CrossFader::LIN_A_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(70, 250), Port::OUTPUT, module, CrossFader::LIN_B_OUTPUT));
 		addOutput(Port::create<PJ301MPort>(Vec(105, 250), Port::OUTPUT, module, CrossFader::FADE_LIN_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(25, 300), Port::OUTPUT, module, CrossFader::LOG_A_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(65, 300), Port::OUTPUT, module, CrossFader::LOG_B_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(35, 300), Port::OUTPUT, module, CrossFader::LOG_A_OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(70, 300), Port::OUTPUT, module, CrossFader::LOG_B_OUTPUT));
 		addOutput(Port::create<PJ301MPort>(Vec(105, 300), Port::OUTPUT, module, CrossFader::FADE_LOG_OUTPUT));
 
 	}
@@ -139,4 +141,4 @@ struct CrossFaderWidget : ModuleWidget {
 // author name for categorization per plugin, module slug (should never
 // change), human-readable module name, and any number of tags
 // (found in `include/tags.hpp`) separated by commas.
-Model *modelCrossFader = Model::create<CrossFader, CrossFaderWidget>("SubmarinePrototype", "CrossFader", "Cross Fader", OSCILLATOR_TAG);
+Model *modelCrossFader = Model::create<CrossFader, CrossFaderWidget>("SubmarinePrototype", "CrossFader", "Cross Fader", ATTENUATOR_TAG, MIXER_TAG);
