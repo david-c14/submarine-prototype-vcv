@@ -103,7 +103,7 @@ float CrossFader::correlation(float a, float b) {
 	float stdev_a = powf(sigma_a2 - (sigma_a * sigma_a / n), 0.5f);
 	float stdev_b = powf(sigma_b2 - (sigma_b * sigma_b / n), 0.5f);
 	if (stdev_a * stdev_b == 0.0f)
-		return 1.0f;
+		return (stdev_a == stdev_b);
 	return covariance / (stdev_a * stdev_b);
 }
 
