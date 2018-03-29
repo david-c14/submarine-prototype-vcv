@@ -10,4 +10,10 @@ This prototype code is copyright © 2018 David O'Rourke.
 
 Full release code will most likely be released under an open source license in the near future.
 
+# Builds
+
+### [Linux](https://github.com/david-c14/submarine-prototype-vcv/files/1860224/SubmarinePrototype-0.6.0-lin.zip)
+
 # [Manual](https://github.com/david-c14/submarine-prototype-vcv/blob/master/manual/index.md)
+
+### [CrossFader](https://github.com/david-c14/submarine-prototype-vcv/blob/master/manual/CrossFader.md)
