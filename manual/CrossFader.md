@@ -11,3 +11,5 @@ model which offers approximately 70% at the halfway point. The preferred choice 
 Although this module does not currently offer an automated selector, it does offer a correlation output which ranges from around -1 to +1V and represents a fast approximation of the correlation between the input signals. For highly correlated signals (+1V) a linear model is generally preferred. Where the signals are significantly different and the correlation is low (0V) a logarithmic model will prevent the dip in perceived volume that might otherwise result. Highly negative correlation would result in destructive interference between the two signals, which can be mitigated by inverting either A or B.
 
 The other diagnostic outputs offer the separated and combined gain signals for A, B and the two signals mixed - for both gain models.
+
+A range of multi-channel professional cross-faders are now available in the [SubmarineFree](https://github.com/david-c14/SubmarineFree) plugin
