@@ -11,6 +11,7 @@ void init(rack::Plugin *p) {
 
 	// Add all Models defined throughout the plugin
 	p->addModel(modelCrossFader);
+	p->addModel(modelScope);
 	p->addModel(modelWTC_Nano);
 
 	// Any other plugin initialization may go here.
