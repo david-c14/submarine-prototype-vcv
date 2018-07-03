@@ -2,6 +2,51 @@
 #include "SubmarinePrototype.hpp"
 #include "dsp/digital.hpp"
 
+//#include <math.h>
+//#include <stdio.h>
+//#include <cstdint>
+//#include <cstdlib>
+#include <cfloat>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
+#if FLT_MANT_DIG == 24
+inline float Q_rsqrt(float number) {
+	int32_t i;
+	float x2, y;
+	const float threehalfs = 1.5f;
+
+	x2 = number * 0.5f;
+	y = number;
+	i = * (int32_t *) &y;
+	i = 0x5f3759df - (i >> 1);
+	y = * (float *) &i;
+	y = y * (threehalfs - (x2 * y * y));
+	return y;
+}
+#elif FLT_MANT_DIG == 53
+#pragma GCC warning "Floating point numbers might be IEEE 754 binary64 - Reciprocal Square Root function is untested"
+inline float Q_rsqrt(float number) {
+	int64_t i;
+	float x2, y;
+	const float threehalfs = 1.5f;
+
+	x2 = number * 0.5f;
+	y = number;
+	i = * (int64_t *) &y;
+	i = 0x5FE6EB50C7B537A9 - (i >> 1);
+	y = * (float *) &i;
+	y = y * (threehalfs - (x2 * y * y));
+	return y;
+}
+#else
+#pragma GCC warning "Not using IEEE 754 floating point numbers - Reciprocal Square Root function will be slow"
+inline float Q_rsqrt(float number) {
+	return 1.0f/sqrt(number);
+}
+#endif
+#pragma GCC diagnostic pop
+
 #define BUFFER_SIZE 32768
 
 struct Scope : Module {
@@ -43,8 +88,6 @@ void Scope::step() {
 
 struct ScopeDisplay : TransparentWidget {
 	Scope *module;
-	float oldx = 0;
-	float oldy = 0;
 
 	void drawWaveform(NVGcontext *vg, float *valuesX, float *valuesY) {
 		if (!valuesX)
@@ -57,29 +100,38 @@ struct ScopeDisplay : TransparentWidget {
 		nvgStrokeWidth(vg, 1.5f);
 		nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
 		int j = module->bufferIndex;
+		float oldx = valuesX[j] / 2.0f + 0.5f;
+		float oldy = valuesY[j] / 2.0f + 0.5f;
+		float bright = 255.0f;
+		float brightdelta = 2550.0f / engineGetSampleRate();
 		for (int i = 0; i < BUFFER_SIZE; i++) {
+			bright -= brightdelta;
 			float x, y;
 			x = valuesX[j] / 2.0f + 0.5f;
 			y = valuesY[j] / 2.0f + 0.5f;
-			float dist = (oldx - x) * (oldx - x) + (oldy - y) * (oldy - y);
-			dist = sqrt(dist);
-			
-			Vec p;
-			p.x = b.pos.x + b.size.x * x;
-			p.y = b.pos.y + b.size.y * (1.0f - y);
-			Vec o;
-			o.x = b.pos.x + b.size.x * oldx;
-			o.y = b.pos.y + b.size.y * (1.0f - oldy);
-			nvgBeginPath(vg);
-			nvgStrokeColor(vg, nvgRGBA(0x00, 0xff, 0x00, (int)(0xff / dist)));
-			nvgMoveTo(vg, o.x, o.y);
-			nvgLineTo(vg, p.x, p.y);
-			nvgStroke(vg);
-			if (j++ >= BUFFER_SIZE)
-				j = 0;
+			if (bright > 1.0f) {
+				float dist2 = (oldx - x) * (oldx - x) + (oldy - y) * (oldy - y);
+				float thisBright = bright * Q_rsqrt(dist2);
+				if (thisBright > 1.0f) {
+					Vec p;
+					p.x = b.pos.x + b.size.x * x;
+					p.y = b.pos.y + b.size.y * (1.0f - y);
+					Vec o;
+					o.x = b.pos.x + b.size.x * oldx;
+					o.y = b.pos.y + b.size.y * (1.0f - oldy);
+					nvgBeginPath(vg);
+					nvgStrokeColor(vg, nvgRGBA(0x00, 0xff, 0x00, (int)(thisBright)));
+					nvgMoveTo(vg, o.x, o.y);
+					nvgLineTo(vg, p.x, p.y);
+					nvgStroke(vg);
+				}
+			}
+			if (j-- <= 0)
+				j = BUFFER_SIZE - 1;
 			oldx = x;
 			oldy = y;
 		}
+		debug ("%f", bright);
 		nvgResetScissor(vg);
 		nvgRestore(vg);
 	}
